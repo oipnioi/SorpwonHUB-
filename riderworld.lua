@@ -80,6 +80,7 @@ _G.Is_Near = false
 _G.Distance = 9
 _G.Select_Fram_Mode = "Above"
 _G.TeleportAroundAngle = 0
+_G.TeleportAroundLastTime = 0
 _G.Level = _G.Level or 1
 
 
@@ -321,7 +322,10 @@ Card_MainFarm:CreateToggle({
                                         elseif _G.Select_Fram_Mode == "Under (Safe)" then
                                             targetPos = mobHrp.CFrame * CFrame.new(0, -dist, 0)
                                         elseif _G.Select_Fram_Mode == "Teleport Around" then
-                                            _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                            if os.clock() - (_G.TeleportAroundLastTime or 0) >= 0.5 then
+                                                _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                                _G.TeleportAroundLastTime = os.clock()
+                                            end
                                             local offsetX = math.cos(_G.TeleportAroundAngle) * dist
                                             local offsetZ = math.sin(_G.TeleportAroundAngle) * dist
                                             targetPos = mobHrp.CFrame * CFrame.new(offsetX, 0, offsetZ)
@@ -425,7 +429,10 @@ Card_MainFarm:CreateToggle({
                                             .HumanoidRootPart.CFrame * CFrame.new(0, _G.Distance - (_G.Distance * 2), 0) *
                                             CFrame.fromOrientation(900, 0, 0)
                                         elseif _G.Select_Fram_Mode == "Teleport Around" then
-                                            _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                            if os.clock() - (_G.TeleportAroundLastTime or 0) >= 0.5 then
+                                                _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                                _G.TeleportAroundLastTime = os.clock()
+                                            end
                                             local offsetX = math.cos(_G.TeleportAroundAngle) * _G.Distance
                                             local offsetZ = math.sin(_G.TeleportAroundAngle) * _G.Distance
                                             local aroundPos = v.HumanoidRootPart.CFrame * CFrame.new(offsetX, 0, offsetZ)
@@ -532,7 +539,10 @@ Card_MainFarm:CreateToggle({
                                 elseif _G.Select_Fram_Mode == "Under (Safe)" then
                                     targetPos = nearestRoot.CFrame * CFrame.new(0, -dist, 0)
                                 elseif _G.Select_Fram_Mode == "Teleport Around" then
-                                    _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                    if os.clock() - (_G.TeleportAroundLastTime or 0) >= 0.5 then
+                                        _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                        _G.TeleportAroundLastTime = os.clock()
+                                    end
                                     local offsetX = math.cos(_G.TeleportAroundAngle) * dist
                                     local offsetZ = math.sin(_G.TeleportAroundAngle) * dist
                                     targetPos = nearestRoot.CFrame * CFrame.new(offsetX, 0, offsetZ)
