@@ -10,7 +10,7 @@
 
 -- Load SorpwonHUB UI Library
 -- ★ THAY LINK GITHUB CỦA BẠN VÀO ĐÂY ★
-local GITHUB_RAW_URL = "https://raw.githubusercontent.com/TÊN_USER/SorpwonHUB/main/SorpwonHUB.lua"
+local GITHUB_RAW_URL = "https://raw.githubusercontent.com/oipnioi/SorpwonHUB/main/SorpwonHUB.lua"
 
 local SorpwonHUB
 local libLoaded, loadedLib = pcall(function()
