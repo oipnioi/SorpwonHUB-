@@ -22,7 +22,17 @@ local libLoaded, loadedLib = pcall(function()
     end
 
     -- Ưu tiên 2: Load từ GitHub raw URL
-    local code = game:HttpService():GetAsync(GITHUB_RAW_URL)
+    local code
+    if game and game.HttpGet then
+        code = game:HttpGet(GITHUB_RAW_URL)
+    elseif httpget then
+        code = httpget(GITHUB_RAW_URL)
+    elseif request then
+        code = request({Url = GITHUB_RAW_URL}).Body
+    elseif http_request then
+        code = http_request({Url = GITHUB_RAW_URL}).Body
+    end
+
     if code and #code > 0 then
         return loadstring(code)()
     end
