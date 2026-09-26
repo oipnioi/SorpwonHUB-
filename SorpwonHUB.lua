@@ -257,16 +257,24 @@ function SorpwonHUB:CreateWindow(config)
     TabBarLine.BorderSizePixel = 0
     TabBarLine.Parent = TabBar
 
+    -- Container for tab buttons (isolated from decorative frames)
+    local TabButtonContainer = Instance.new("Frame")
+    TabButtonContainer.Name = "TabButtonContainer"
+    TabButtonContainer.Size = UDim2.new(1, 0, 1, 0)
+    TabButtonContainer.BackgroundTransparency = 1
+    TabButtonContainer.BorderSizePixel = 0
+    TabButtonContainer.Parent = TabBar
+
     local TabList = Instance.new("UIListLayout")
     TabList.SortOrder = Enum.SortOrder.LayoutOrder
     TabList.Padding = UDim.new(0, 2)
-    TabList.Parent = TabBar
+    TabList.Parent = TabButtonContainer
 
     local TabPadding = Instance.new("UIPadding")
     TabPadding.PaddingTop = UDim.new(0, 8)
     TabPadding.PaddingLeft = UDim.new(0, 6)
     TabPadding.PaddingRight = UDim.new(0, 6)
-    TabPadding.Parent = TabBar
+    TabPadding.Parent = TabButtonContainer
 
     -- Content Area
     local ContentArea = Instance.new("Frame")
@@ -396,7 +404,7 @@ function SorpwonHUB:CreateWindow(config)
         TabButton.BackgroundColor3 = Theme.Surface
         TabButton.BackgroundTransparency = 1
         TabButton.Text = ""
-        TabButton.Parent = TabBar
+        TabButton.Parent = TabButtonContainer
         Instance.new("UICorner", TabButton).CornerRadius = UDim.new(0, 8)
 
         local TabIconLabel = Instance.new("TextLabel")
