@@ -79,6 +79,7 @@ end
 _G.Is_Near = false
 _G.Distance = 9
 _G.Select_Fram_Mode = "Above"
+_G.TeleportAroundAngle = 0
 _G.Level = _G.Level or 1
 
 
@@ -319,6 +320,11 @@ Card_MainFarm:CreateToggle({
                                             targetPos = mobHrp.CFrame * CFrame.new(0, 0, dist)
                                         elseif _G.Select_Fram_Mode == "Under (Safe)" then
                                             targetPos = mobHrp.CFrame * CFrame.new(0, -dist, 0)
+                                        elseif _G.Select_Fram_Mode == "Teleport Around" then
+                                            _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                            local offsetX = math.cos(_G.TeleportAroundAngle) * dist
+                                            local offsetZ = math.sin(_G.TeleportAroundAngle) * dist
+                                            targetPos = mobHrp.CFrame * CFrame.new(offsetX, 0, offsetZ)
                                         end
 
                                         -- Dùng CFrame.lookAt để ép mặt nhân vật luôn nhìn thẳng vào quái
@@ -418,6 +424,12 @@ Card_MainFarm:CreateToggle({
                                             game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = v
                                             .HumanoidRootPart.CFrame * CFrame.new(0, _G.Distance - (_G.Distance * 2), 0) *
                                             CFrame.fromOrientation(900, 0, 0)
+                                        elseif _G.Select_Fram_Mode == "Teleport Around" then
+                                            _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                            local offsetX = math.cos(_G.TeleportAroundAngle) * _G.Distance
+                                            local offsetZ = math.sin(_G.TeleportAroundAngle) * _G.Distance
+                                            local aroundPos = v.HumanoidRootPart.CFrame * CFrame.new(offsetX, 0, offsetZ)
+                                            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.lookAt(aroundPos.Position, v.HumanoidRootPart.Position)
                                         end
 
                                         if not game:GetService("Players").LocalPlayer.Character:FindFirstChild("Attack") then
@@ -519,6 +531,11 @@ Card_MainFarm:CreateToggle({
                                     targetPos = nearestRoot.CFrame * CFrame.new(0, 0, dist)
                                 elseif _G.Select_Fram_Mode == "Under (Safe)" then
                                     targetPos = nearestRoot.CFrame * CFrame.new(0, -dist, 0)
+                                elseif _G.Select_Fram_Mode == "Teleport Around" then
+                                    _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                    local offsetX = math.cos(_G.TeleportAroundAngle) * dist
+                                    local offsetZ = math.sin(_G.TeleportAroundAngle) * dist
+                                    targetPos = nearestRoot.CFrame * CFrame.new(offsetX, 0, offsetZ)
                                 else
                                     targetPos = nearestRoot.CFrame * CFrame.new(0, dist, 0)
                                 end
@@ -552,10 +569,13 @@ Card_MainFarm:CreateToggle({
 -- ── Farm Settings (Column 2) ──
 Card_FarmSettings:CreateDropdown({
     Name = "Pos Method",
-    Options = { "Above", "Behind", "Under (Safe)" },
+    Options = { "Above", "Behind", "Under (Safe)", "Teleport Around" },
     Default = "Above",
     Callback = function(val)
         _G.Select_Fram_Mode = val
+        if val == "Teleport Around" then
+            _G.TeleportAroundAngle = 0
+        end
     end
 })
 
