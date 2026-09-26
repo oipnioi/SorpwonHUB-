@@ -363,7 +363,24 @@ Card_MainFarm:CreateToggle({
                                             if spawnerNPC and spawnerRoot then
                                                 hasSpawnerInMobs = true
                                                 local dist = _G.Distance or 9
-                                                local waitPos = spawnerRoot.CFrame * CFrame.new(0, 0, dist)
+                                                local waitPos
+                                                if _G.Select_Fram_Mode == "Above" then
+                                                    waitPos = spawnerRoot.CFrame * CFrame.new(0, dist, 0)
+                                                elseif _G.Select_Fram_Mode == "Behind" then
+                                                    waitPos = spawnerRoot.CFrame * CFrame.new(0, 0, dist)
+                                                elseif _G.Select_Fram_Mode == "Under (Safe)" then
+                                                    waitPos = spawnerRoot.CFrame * CFrame.new(0, -dist, 0)
+                                                elseif _G.Select_Fram_Mode == "Teleport Around" then
+                                                    if os.clock() - (_G.TeleportAroundLastTime or 0) >= 0.5 then
+                                                        _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
+                                                        _G.TeleportAroundLastTime = os.clock()
+                                                    end
+                                                    local offsetX = math.cos(_G.TeleportAroundAngle) * dist
+                                                    local offsetZ = math.sin(_G.TeleportAroundAngle) * dist
+                                                    waitPos = spawnerRoot.CFrame * CFrame.new(offsetX, 0, offsetZ)
+                                                else
+                                                    waitPos = spawnerRoot.CFrame * CFrame.new(0, dist, 0)
+                                                end
                                                 campCFrame = CFrame.lookAt(waitPos.Position, spawnerRoot.Position)
                                             end
                                         end
