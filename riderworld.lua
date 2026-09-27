@@ -665,6 +665,20 @@ _G.E = false
 _G.R = false
 _G.C = false
 _G.V = false
+_G.OnlyWhenFarming = false
+
+-- Helper: kiểm tra xem có đang farm không (Kill Aura hoặc Auto Attack Nearest đang bật)
+local function IsFarmingActive()
+    return _G.Kill_Aura == true or _G.AutoAttackNearest == true
+end
+
+Card_FarmSettings:CreateToggle({
+    Name = "Skills Only When Farming",
+    Default = false,
+    Callback = function(v)
+        _G.OnlyWhenFarming = v
+    end
+})
 
 Card_FarmSettings:CreateToggle({
     Name = "Auto M1",
@@ -674,35 +688,40 @@ Card_FarmSettings:CreateToggle({
         if _G.Auto_M1 then
             task.spawn(function()
                 while _G.Auto_M1 do
-                    local player = game:GetService("Players").LocalPlayer
-                    local character = player.Character or player.CharacterAdded:Wait()
-                    local handlerEvent = character:WaitForChild("PlayerHandler"):WaitForChild("HandlerEvent")
+                    -- Nếu bật "Only When Farming" thì chờ đến khi farm active
+                    if _G.OnlyWhenFarming and not IsFarmingActive() then
+                        task.wait(0.2)
+                    else
+                        local player = game:GetService("Players").LocalPlayer
+                        local character = player.Character or player.CharacterAdded:Wait()
+                        local handlerEvent = character:WaitForChild("PlayerHandler"):WaitForChild("HandlerEvent")
 
-                    local targetCFrame
-                    local enemies = workspace:FindFirstChild("Lives") or workspace:FindFirstChild("Mobs")
-                    if enemies then
-                        for _, enemy in pairs(enemies:GetChildren()) do
-                            if enemy:FindFirstChild("HumanoidRootPart") and enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy.Name ~= player.Name then
-                                targetCFrame = enemy.HumanoidRootPart.CFrame
-                                break
+                        local targetCFrame
+                        local enemies = workspace:FindFirstChild("Lives") or workspace:FindFirstChild("Mobs")
+                        if enemies then
+                            for _, enemy in pairs(enemies:GetChildren()) do
+                                if enemy:FindFirstChild("HumanoidRootPart") and enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy.Name ~= player.Name then
+                                    targetCFrame = enemy.HumanoidRootPart.CFrame
+                                    break
+                                end
                             end
                         end
-                    end
 
-                    if not targetCFrame then
-                        targetCFrame = character.HumanoidRootPart.CFrame + character.HumanoidRootPart.CFrame.LookVector *
-                            5
-                    end
+                        if not targetCFrame then
+                            targetCFrame = character.HumanoidRootPart.CFrame + character.HumanoidRootPart.CFrame.LookVector *
+                                5
+                        end
 
-                    local args = {
-                        {
-                            CombatAction = true,
-                            LightAttack = true,
-                            MouseData = targetCFrame
+                        local args = {
+                            {
+                                CombatAction = true,
+                                LightAttack = true,
+                                MouseData = targetCFrame
+                            }
                         }
-                    }
-                    handlerEvent:FireServer(unpack(args))
-                    task.wait(0.1)
+                        handlerEvent:FireServer(unpack(args))
+                        task.wait(0.1)
+                    end
                 end
             end)
         end
@@ -717,36 +736,40 @@ Card_FarmSettings:CreateToggle({
         if _G.Auto_M2 then
             task.spawn(function()
                 while _G.Auto_M2 do
-                    local player = game:GetService("Players").LocalPlayer
-                    local character = player.Character or player.CharacterAdded:Wait()
-                    local handlerEvent = character:WaitForChild("PlayerHandler"):WaitForChild("HandlerEvent")
+                    if _G.OnlyWhenFarming and not IsFarmingActive() then
+                        task.wait(0.2)
+                    else
+                        local player = game:GetService("Players").LocalPlayer
+                        local character = player.Character or player.CharacterAdded:Wait()
+                        local handlerEvent = character:WaitForChild("PlayerHandler"):WaitForChild("HandlerEvent")
 
-                    local targetCFrame
-                    local enemies = workspace:FindFirstChild("Lives") or workspace:FindFirstChild("Mobs")
-                    if enemies then
-                        for _, enemy in pairs(enemies:GetChildren()) do
-                            if enemy:FindFirstChild("HumanoidRootPart") and enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy.Name ~= player.Name then
-                                targetCFrame = enemy.HumanoidRootPart.CFrame
-                                break
+                        local targetCFrame
+                        local enemies = workspace:FindFirstChild("Lives") or workspace:FindFirstChild("Mobs")
+                        if enemies then
+                            for _, enemy in pairs(enemies:GetChildren()) do
+                                if enemy:FindFirstChild("HumanoidRootPart") and enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy.Name ~= player.Name then
+                                    targetCFrame = enemy.HumanoidRootPart.CFrame
+                                    break
+                                end
                             end
                         end
-                    end
 
-                    if not targetCFrame then
-                        targetCFrame = character.HumanoidRootPart.CFrame + character.HumanoidRootPart.CFrame.LookVector *
-                            5
-                    end
+                        if not targetCFrame then
+                            targetCFrame = character.HumanoidRootPart.CFrame + character.HumanoidRootPart.CFrame.LookVector *
+                                5
+                        end
 
-                    local args = {
-                        {
-                            CombatAction = true,
-                            AttackType = "Down",
-                            HeavyAttack = true,
-                            MouseData = targetCFrame
+                        local args = {
+                            {
+                                CombatAction = true,
+                                AttackType = "Down",
+                                HeavyAttack = true,
+                                MouseData = targetCFrame
+                            }
                         }
-                    }
-                    handlerEvent:FireServer(unpack(args))
-                    task.wait(0.1)
+                        handlerEvent:FireServer(unpack(args))
+                        task.wait(0.1)
+                    end
                 end
             end)
         end
@@ -761,12 +784,16 @@ Card_FarmSettings:CreateToggle({
         if _G.E then
             task.spawn(function()
                 while _G.E do
-                    task.wait(0.5)
-                    pcall(function()
-                        game:GetService("VirtualInputManager"):SendKeyEvent(true, "E", false, game)
-                        task.wait(0.1)
-                        game:GetService("VirtualInputManager"):SendKeyEvent(false, "E", false, game)
-                    end)
+                    if _G.OnlyWhenFarming and not IsFarmingActive() then
+                        task.wait(0.3)
+                    else
+                        task.wait(0.5)
+                        pcall(function()
+                            game:GetService("VirtualInputManager"):SendKeyEvent(true, "E", false, game)
+                            task.wait(0.1)
+                            game:GetService("VirtualInputManager"):SendKeyEvent(false, "E", false, game)
+                        end)
+                    end
                 end
             end)
         end
@@ -781,12 +808,16 @@ Card_FarmSettings:CreateToggle({
         if _G.R then
             task.spawn(function()
                 while _G.R do
-                    task.wait(0.5)
-                    pcall(function()
-                        game:GetService("VirtualInputManager"):SendKeyEvent(true, "R", false, game)
-                        task.wait(0.1)
-                        game:GetService("VirtualInputManager"):SendKeyEvent(false, "R", false, game)
-                    end)
+                    if _G.OnlyWhenFarming and not IsFarmingActive() then
+                        task.wait(0.3)
+                    else
+                        task.wait(0.5)
+                        pcall(function()
+                            game:GetService("VirtualInputManager"):SendKeyEvent(true, "R", false, game)
+                            task.wait(0.1)
+                            game:GetService("VirtualInputManager"):SendKeyEvent(false, "R", false, game)
+                        end)
+                    end
                 end
             end)
         end
@@ -801,12 +832,16 @@ Card_FarmSettings:CreateToggle({
         if _G.C then
             task.spawn(function()
                 while _G.C do
-                    task.wait(0.5)
-                    pcall(function()
-                        game:GetService("VirtualInputManager"):SendKeyEvent(true, "C", false, game)
-                        task.wait(0.1)
-                        game:GetService("VirtualInputManager"):SendKeyEvent(false, "C", false, game)
-                    end)
+                    if _G.OnlyWhenFarming and not IsFarmingActive() then
+                        task.wait(0.3)
+                    else
+                        task.wait(0.5)
+                        pcall(function()
+                            game:GetService("VirtualInputManager"):SendKeyEvent(true, "C", false, game)
+                            task.wait(0.1)
+                            game:GetService("VirtualInputManager"):SendKeyEvent(false, "C", false, game)
+                        end)
+                    end
                 end
             end)
         end
@@ -821,12 +856,16 @@ Card_FarmSettings:CreateToggle({
         if _G.V then
             task.spawn(function()
                 while _G.V do
-                    task.wait(0.5)
-                    pcall(function()
-                        game:GetService("VirtualInputManager"):SendKeyEvent(true, "V", false, game)
-                        task.wait(0.1)
-                        game:GetService("VirtualInputManager"):SendKeyEvent(false, "V", false, game)
-                    end)
+                    if _G.OnlyWhenFarming and not IsFarmingActive() then
+                        task.wait(0.3)
+                    else
+                        task.wait(0.5)
+                        pcall(function()
+                            game:GetService("VirtualInputManager"):SendKeyEvent(true, "V", false, game)
+                            task.wait(0.1)
+                            game:GetService("VirtualInputManager"):SendKeyEvent(false, "V", false, game)
+                        end)
+                    end
                 end
             end)
         end
