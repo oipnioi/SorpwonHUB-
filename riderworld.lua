@@ -917,6 +917,9 @@ local Tab_SubFarm = Window:CreateTab({ Name = "Sub Farm", Icon = "⚔️" })
 local Card_SubFarm = Tab_SubFarm:CreateSection("Sub Farm")
 local Card_SubFarmSettings = Tab_SubFarm:CreateSection("Farm Settings Sync")
 
+-- Toạ độ chuẩn bãi Fyze (bắt buộc tele lại gần để game load quái Streaming):
+local FYZE_CFRAME = CFrame.new(783.380981, 14.2860003, -802.442017, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+
 -- Helper: Kiểm tra tên có phải Fyze/Faiz
 local function MatchesFyze(name)
     if not name then return false end
@@ -1076,25 +1079,25 @@ end
 -- Helper: Tìm vị trí Spawner cụ thể của Fyze hoặc Kyza
 local function GetSpecificSpawnerRoot(targetType)
     local mobsFolder = game:GetService("Workspace"):FindFirstChild("Mobs")
-    if not mobsFolder then return nil end
+    if mobsFolder then
+        for _, spawner in ipairs(mobsFolder:GetChildren()) do
+            local match = false
+            if targetType == "Fyze" and MatchesFyze(spawner.Name) then
+                match = true
+            elseif targetType == "Kyza" and MatchesKyza(spawner.Name) then
+                match = true
+            end
 
-    for _, spawner in ipairs(mobsFolder:GetChildren()) do
-        local match = false
-        if targetType == "Fyze" and MatchesFyze(spawner.Name) then
-            match = true
-        elseif targetType == "Kyza" and MatchesKyza(spawner.Name) then
-            match = true
-        end
-
-        if match then
-            local root = spawner:FindFirstChild("HumanoidRootPart", true)
-                or spawner:FindFirstChild("RootPart", true)
-                or spawner:FindFirstChild("Torso", true)
-                or spawner.PrimaryPart
-                or (spawner:IsA("BasePart") and spawner)
-                or spawner:FindFirstChildWhichIsA("BasePart", true)
-            if root then
-                return root
+            if match then
+                local root = spawner:FindFirstChild("HumanoidRootPart", true)
+                    or spawner:FindFirstChild("RootPart", true)
+                    or spawner:FindFirstChild("Torso", true)
+                    or spawner.PrimaryPart
+                    or (spawner:IsA("BasePart") and spawner)
+                    or spawner:FindFirstChildWhichIsA("BasePart", true)
+                if root then
+                    return root
+                end
             end
         end
     end
@@ -1119,7 +1122,6 @@ local function GetFyzeKyzaSpawnerPos(targetMode, lastKilled)
         if kyzaSp then return kyzaSp end
     end
 
-    -- Mặc định ưu tiên Fyze trước rồi đến Kyza
     return GetSpecificSpawnerRoot("Fyze") or GetSpecificSpawnerRoot("Kyza")
 end
 
@@ -1143,6 +1145,13 @@ Card_SubFarm:CreateToggle({
                         local targetMob, targetRoot, targetHumanoid, mobType = GetFyzeKyzaTarget(_G.FyzeKaixaTarget)
 
                         if targetMob and targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                            -- Ghi nhận toạ độ quái đang đánh để sau này có thể quay lại
+                            if mobType == "Kyza" then
+                                _G.KaixaLocation = targetRoot.CFrame
+                            elseif mobType == "Fyze" then
+                                _G.FyzeLocation = targetRoot.CFrame
+                            end
+
                             -- Đang tìm thấy Fyze hoặc Kyza -> Tấn công liên tục đến khi chết
                             while _G.AutoFyzeKaixa and targetMob.Parent and targetHumanoid and targetHumanoid.Health > 0 do
                                 task.wait()
@@ -1196,41 +1205,51 @@ Card_SubFarm:CreateToggle({
                                 end)
                             end
 
-                            -- Đã hạ gục xong -> lưu lại boss vừa đánh để luân chuyển
+                            -- Đã hạ gục xong
                             if mobType then
                                 _G.LastKilledBoss = mobType
                             end
-                        else
-                            -- Chưa xuất hiện / Đã bị hạ gục -> Chờ hồi sinh tại vị trí spawner (nếu bật camp spawner)
-                            if _G.FyzeKaixaCampSpawner then
-                                local spawnerRoot = GetFyzeKyzaSpawnerPos(_G.FyzeKaixaTarget, _G.LastKilledBoss)
-                                if spawnerRoot then
-                                    local dist = _G.Distance or 9
-                                    local waitPos
-                                    if _G.Select_Fram_Mode == "Above" then
-                                        waitPos = spawnerRoot.CFrame * CFrame.new(0, dist, 0)
-                                    elseif _G.Select_Fram_Mode == "Behind" then
-                                        waitPos = spawnerRoot.CFrame * CFrame.new(0, 0, dist)
-                                    elseif _G.Select_Fram_Mode == "Under (Safe)" then
-                                        waitPos = spawnerRoot.CFrame * CFrame.new(0, -dist, 0)
-                                    elseif _G.Select_Fram_Mode == "Teleport Around" then
-                                        if os.clock() - (_G.TeleportAroundLastTime or 0) >= 0.5 then
-                                            _G.TeleportAroundAngle = (_G.TeleportAroundAngle or 0) + math.rad(45)
-                                            _G.TeleportAroundLastTime = os.clock()
-                                        end
-                                        local offsetX = math.cos(_G.TeleportAroundAngle) * dist
-                                        local offsetZ = math.sin(_G.TeleportAroundAngle) * dist
-                                        waitPos = spawnerRoot.CFrame * CFrame.new(offsetX, 0, offsetZ)
-                                    else
-                                        waitPos = spawnerRoot.CFrame * CFrame.new(0, dist, 0)
-                                    end
 
-                                    character.HumanoidRootPart.CFrame = CFrame.lookAt(waitPos.Position, spawnerRoot.Position)
+                            -- ★ SAU KHI GIẾT XONG:
+                            -- Do game cần lại gần mới load quái (Streaming):
+                            -- Nếu vừa giết Kaixa -> Lập tức tele qua toạ độ của Fyze để game load quái!
+                            if mobType == "Kyza" and (_G.FyzeKaixaTarget == "Both (Nearest)" or _G.FyzeKaixaTarget == "Fyze Only") then
+                                pcall(function()
+                                    character.HumanoidRootPart.CFrame = FYZE_CFRAME
+                                    character.Humanoid:ChangeState(11)
+                                end)
+                                task.wait(0.6) -- Chờ game stream / load Fyze vào Workspace
+                            elseif mobType == "Fyze" and (_G.FyzeKaixaTarget == "Both (Nearest)" or _G.FyzeKaixaTarget == "Kyza Only") then
+                                if _G.KaixaLocation then
                                     pcall(function()
-                                        local charHumanoid = character:FindFirstChild("Humanoid")
-                                        if charHumanoid then charHumanoid:ChangeState(11) end
+                                        character.HumanoidRootPart.CFrame = _G.KaixaLocation * CFrame.new(0, _G.Distance or 9, 0)
+                                        character.Humanoid:ChangeState(11)
                                     end)
+                                    task.wait(0.6)
                                 end
+                            end
+                        else
+                            -- Chưa xuất hiện / Chưa load được quái:
+                            -- Tự động tele qua khu vực của boss tiếp theo để kích hoạt load quái:
+                            if _G.LastKilledBoss == "Kyza" or _G.FyzeKaixaTarget == "Fyze Only" then
+                                pcall(function()
+                                    character.HumanoidRootPart.CFrame = FYZE_CFRAME
+                                    character.Humanoid:ChangeState(11)
+                                end)
+                                task.wait(0.5)
+                            elseif _G.LastKilledBoss == "Fyze" and _G.KaixaLocation then
+                                pcall(function()
+                                    character.HumanoidRootPart.CFrame = _G.KaixaLocation * CFrame.new(0, _G.Distance or 9, 0)
+                                    character.Humanoid:ChangeState(11)
+                                end)
+                                task.wait(0.5)
+                            else
+                                -- Nếu chưa từng hạ ai: tele qua Fyze để kiểm tra load
+                                pcall(function()
+                                    character.HumanoidRootPart.CFrame = FYZE_CFRAME
+                                    character.Humanoid:ChangeState(11)
+                                end)
+                                task.wait(0.5)
                             end
                         end
                     end)
@@ -1258,29 +1277,29 @@ Card_SubFarm:CreateToggle({
 })
 
 Card_SubFarm:CreateButton({
-    Name = "⚡ Teleport to Fyze Spawner",
+    Name = "⚡ Teleport to Fyze Area",
     Callback = function()
-        local spRoot = GetSpecificSpawnerRoot("Fyze")
-        if spRoot then
-            local dist = _G.Distance or 9
-            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = spRoot.CFrame * CFrame.new(0, dist, 0)
-            Window:Notify({ Title = "Sub Farm", Content = "Teleported to Fyze Spawner!", Duration = 3 })
-        else
-            Window:Notify({ Title = "Sub Farm", Content = "Cannot find Fyze spawner in Workspace.Mobs!", Duration = 3 })
-        end
+        pcall(function()
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = FYZE_CFRAME
+        end)
+        Window:Notify({ Title = "Sub Farm", Content = "Teleported to Fyze Area!", Duration = 3 })
     end
 })
 
 Card_SubFarm:CreateButton({
-    Name = "⚡ Teleport to Kyza Spawner",
+    Name = "⚡ Teleport to Kyza Area",
     Callback = function()
-        local spRoot = GetSpecificSpawnerRoot("Kyza")
-        if spRoot then
+        local targetCFrame = _G.KaixaLocation
+        if not targetCFrame then
+            local spRoot = GetSpecificSpawnerRoot("Kyza")
+            if spRoot then targetCFrame = spRoot.CFrame end
+        end
+        if targetCFrame then
             local dist = _G.Distance or 9
-            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = spRoot.CFrame * CFrame.new(0, dist, 0)
-            Window:Notify({ Title = "Sub Farm", Content = "Teleported to Kyza Spawner!", Duration = 3 })
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = targetCFrame * CFrame.new(0, dist, 0)
+            Window:Notify({ Title = "Sub Farm", Content = "Teleported to Kyza Area!", Duration = 3 })
         else
-            Window:Notify({ Title = "Sub Farm", Content = "Cannot find Kyza spawner in Workspace.Mobs!", Duration = 3 })
+            Window:Notify({ Title = "Sub Farm", Content = "Cannot find Kyza area! Start farming near Kyza first.", Duration = 3 })
         end
     end
 })
