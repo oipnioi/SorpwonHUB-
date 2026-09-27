@@ -513,6 +513,7 @@ Card_MainFarm:CreateToggle({
                         local nearestMob = nil
                         local nearestDist = math.huge
                         local nearestRoot = nil
+                        local searchRange = _G.NearestSearchDistance or 100
 
                         -- Tìm mob gần nhất trong Lives và Mobs
                         local folders = {}
@@ -532,7 +533,7 @@ Card_MainFarm:CreateToggle({
                                     local root = mob:FindFirstChild("HumanoidRootPart", true) or mob:FindFirstChild("RootPart", true) or mob.PrimaryPart
                                     if root then
                                         local dist = (root.Position - playerPos).Magnitude
-                                        if dist < nearestDist then
+                                        if dist <= searchRange and dist < nearestDist then
                                             nearestDist = dist
                                             nearestMob = mob
                                             nearestRoot = root
@@ -590,6 +591,16 @@ Card_MainFarm:CreateToggle({
                 end
             end)
         end
+    end
+})
+
+Card_MainFarm:CreateSlider({
+    Name = "Search Distance (Nearest)",
+    Min = 0,
+    Max = 3000,
+    Default = 100,
+    Callback = function(val)
+        _G.NearestSearchDistance = val
     end
 })
 
