@@ -917,133 +917,210 @@ local Tab_SubFarm = Window:CreateTab({ Name = "Sub Farm", Icon = "⚔️" })
 local Card_SubFarm = Tab_SubFarm:CreateSection("Sub Farm")
 local Card_SubFarmSettings = Tab_SubFarm:CreateSection("Farm Settings Sync")
 
--- Helper: tìm kiếm mục tiêu Fyze hoặc Kyza / Kaixa trong Workspace
+-- Helper: Kiểm tra tên có phải Fyze/Faiz
+local function MatchesFyze(name)
+    if not name then return false end
+    local n = string.lower(tostring(name))
+    return string.find(n, "fyze") ~= nil or string.find(n, "faiz") ~= nil or string.find(n, "fize") ~= nil or string.find(n, "faize") ~= nil
+end
+
+-- Helper: Kiểm tra tên có phải Kyza/Kaixa
+local function MatchesKyza(name)
+    if not name then return false end
+    local n = string.lower(tostring(name))
+    return string.find(n, "kyza") ~= nil or string.find(n, "kaixa") ~= nil or string.find(n, "kaize") ~= nil or string.find(n, "kyxa") ~= nil
+end
+
+-- Helper: Trích xuất thông tin mob hợp lệ
+local function ExtractMobInfo(obj, mobType)
+    if not obj or not obj.Parent then return nil end
+    if game:GetService("Players"):FindFirstChild(obj.Name) then return nil end
+    if game:GetService("Players"):GetPlayerFromCharacter(obj) then return nil end
+
+    local hum = obj:FindFirstChildWhichIsA("Humanoid", true) or obj:FindFirstChild("Humanoid", true)
+    if not hum or not hum.Parent then return nil end
+    if hum.Health <= 0 then return nil end
+
+    local isDead = false
+    pcall(function()
+        if hum:GetState() == Enum.HumanoidStateType.Dead then
+            isDead = true
+        end
+    end)
+    if isDead then return nil end
+
+    local root = obj:FindFirstChild("HumanoidRootPart", true)
+        or obj:FindFirstChild("RootPart", true)
+        or obj:FindFirstChild("Torso", true)
+        or obj:FindFirstChild("UpperTorso", true)
+        or obj.PrimaryPart
+        or (obj:IsA("BasePart") and obj)
+        or obj:FindFirstChildWhichIsA("BasePart", true)
+
+    if not root then return nil end
+
+    local model = hum.Parent
+    if not model or not model:IsA("Model") then
+        model = obj
+    end
+
+    return {
+        mob = model,
+        root = root,
+        humanoid = hum,
+        mobType = mobType,
+        name = model.Name
+    }
+end
+
+-- Helper: tìm kiếm mục tiêu Fyze hoặc Kyza / Kaixa trong toàn bộ Workspace
 local function GetFyzeKyzaTarget(targetMode)
     targetMode = targetMode or _G.FyzeKaixaTarget or "Both (Nearest)"
     local player = game:GetService("Players").LocalPlayer
     local character = player.Character
     if not character or not character:FindFirstChild("HumanoidRootPart") then
-        return nil, nil, nil
+        return nil, nil, nil, nil
     end
     local playerPos = character.HumanoidRootPart.Position
 
     local candidates = {}
+    local visited = {}
 
-    local function ConsiderMob(mob, mobType)
-        if not mob or not mob.Parent then return end
-        if game:GetService("Players"):FindFirstChild(mob.Name) then return end
-
-        if targetMode == "Fyze Only" and mobType ~= "Fyze" then return end
-        if targetMode == "Kyza Only" and mobType ~= "Kyza" then return end
-
-        local humanoid = mob:FindFirstChild("Humanoid", true)
-        local root = mob:FindFirstChild("HumanoidRootPart", true)
-            or mob:FindFirstChild("RootPart", true)
-            or (mob:IsA("BasePart") and mob)
-            or mob.PrimaryPart
-
-        if humanoid and humanoid.Health > 0 and root then
-            local dist = (root.Position - playerPos).Magnitude
-            table.insert(candidates, {
-                mob = mob,
-                root = root,
-                humanoid = humanoid,
-                dist = dist,
-                mobType = mobType
-            })
+    local function TryAdd(obj, mobType)
+        if not obj or visited[obj] then return end
+        local info = ExtractMobInfo(obj, mobType)
+        if info and not visited[info.mob] then
+            visited[obj] = true
+            visited[info.mob] = true
+            info.dist = (info.root.Position - playerPos).Magnitude
+            table.insert(candidates, info)
         end
     end
 
+    -- 1. Quét trong workspace.Mobs (tìm cả model cha và các model con bên trong)
     local mobsFolder = game:GetService("Workspace"):FindFirstChild("Mobs")
-    local livesFolder = game:GetService("Workspace"):FindFirstChild("Lives")
-
-    -- 1. Quét trong workspace.Mobs (Fyze, Kyza, Kaixa)
     if mobsFolder then
-        local fyzeObj = mobsFolder:FindFirstChild("Fyze")
-        if fyzeObj then
-            if fyzeObj:IsA("Model") and fyzeObj:FindFirstChild("Humanoid", true) then
-                ConsiderMob(fyzeObj, "Fyze")
-            end
-            for _, child in ipairs(fyzeObj:GetChildren()) do
-                if child:IsA("Model") then
-                    ConsiderMob(child, "Fyze")
-                end
-            end
-        end
+        for _, obj in ipairs(mobsFolder:GetChildren()) do
+            local isFyze = MatchesFyze(obj.Name)
+            local isKyza = MatchesKyza(obj.Name)
 
-        local kyzaObj = mobsFolder:FindFirstChild("Kyza") or mobsFolder:FindFirstChild("Kaixa")
-        if kyzaObj then
-            if kyzaObj:IsA("Model") and kyzaObj:FindFirstChild("Humanoid", true) then
-                ConsiderMob(kyzaObj, "Kyza")
-            end
-            for _, child in ipairs(kyzaObj:GetChildren()) do
-                if child:IsA("Model") then
-                    ConsiderMob(child, "Kyza")
+            if isFyze and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
+                TryAdd(obj, "Fyze")
+                for _, child in ipairs(obj:GetChildren()) do
+                    TryAdd(child, "Fyze")
                 end
-            end
-        end
-
-        for _, mob in ipairs(mobsFolder:GetChildren()) do
-            local lname = string.lower(mob.Name)
-            if string.find(lname, "fyze") then
-                ConsiderMob(mob, "Fyze")
-            elseif string.find(lname, "kyza") or string.find(lname, "kaixa") then
-                ConsiderMob(mob, "Kyza")
+            elseif isKyza and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
+                TryAdd(obj, "Kyza")
+                for _, child in ipairs(obj:GetChildren()) do
+                    TryAdd(child, "Kyza")
+                end
             end
         end
     end
 
-    -- 2. Quét trong workspace.Lives (khi mob tham chiến)
+    -- 2. Quét trong workspace.Lives (nơi quái spawn ra thực chiến)
+    local livesFolder = game:GetService("Workspace"):FindFirstChild("Lives")
     if livesFolder then
-        for _, mob in ipairs(livesFolder:GetChildren()) do
-            local lname = string.lower(mob.Name)
-            if string.find(lname, "fyze") then
-                ConsiderMob(mob, "Fyze")
-            elseif string.find(lname, "kyza") or string.find(lname, "kaixa") then
-                ConsiderMob(mob, "Kyza")
+        for _, obj in ipairs(livesFolder:GetChildren()) do
+            local isFyze = MatchesFyze(obj.Name)
+            local isKyza = MatchesKyza(obj.Name)
+
+            if isFyze and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
+                TryAdd(obj, "Fyze")
+            elseif isKyza and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
+                TryAdd(obj, "Kyza")
+            end
+        end
+    end
+
+    -- 3. Quét trong workspace.NPC và workspace gốc (dự phòng)
+    local npcFolder = game:GetService("Workspace"):FindFirstChild("NPC")
+    if npcFolder then
+        for _, obj in ipairs(npcFolder:GetChildren()) do
+            local isFyze = MatchesFyze(obj.Name)
+            local isKyza = MatchesKyza(obj.Name)
+
+            if isFyze and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
+                TryAdd(obj, "Fyze")
+            elseif isKyza and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
+                TryAdd(obj, "Kyza")
+            end
+        end
+    end
+
+    for _, obj in ipairs(game:GetService("Workspace"):GetChildren()) do
+        if obj:IsA("Model") and not game:GetService("Players"):GetPlayerFromCharacter(obj) then
+            local isFyze = MatchesFyze(obj.Name)
+            local isKyza = MatchesKyza(obj.Name)
+
+            if isFyze and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
+                TryAdd(obj, "Fyze")
+            elseif isKyza and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
+                TryAdd(obj, "Kyza")
             end
         end
     end
 
     if #candidates == 0 then
-        return nil, nil, nil
+        return nil, nil, nil, nil
     end
 
-    -- Ưu tiên mob ở khoảng cách gần người chơi nhất (y hệt Auto Attack Nearest)
+    -- Sắp xếp ưu tiên mob ở khoảng cách gần nhất
     table.sort(candidates, function(a, b)
         return a.dist < b.dist
     end)
 
-    return candidates[1].mob, candidates[1].root, candidates[1].humanoid
+    return candidates[1].mob, candidates[1].root, candidates[1].humanoid, candidates[1].mobType
 end
 
--- Helper: Tìm vị trí Spawner để chờ hồi sinh an toàn
-local function GetFyzeKyzaSpawnerPos(targetMode)
+-- Helper: Tìm vị trí Spawner cụ thể của Fyze hoặc Kyza
+local function GetSpecificSpawnerRoot(targetType)
     local mobsFolder = game:GetService("Workspace"):FindFirstChild("Mobs")
     if not mobsFolder then return nil end
 
-    local namesToCheck = {}
-    if targetMode == "Fyze Only" then
-        namesToCheck = { "Fyze" }
-    elseif targetMode == "Kyza Only" then
-        namesToCheck = { "Kyza", "Kaixa" }
-    else
-        namesToCheck = { "Fyze", "Kyza", "Kaixa" }
-    end
+    for _, spawner in ipairs(mobsFolder:GetChildren()) do
+        local match = false
+        if targetType == "Fyze" and MatchesFyze(spawner.Name) then
+            match = true
+        elseif targetType == "Kyza" and MatchesKyza(spawner.Name) then
+            match = true
+        end
 
-    for _, name in ipairs(namesToCheck) do
-        local spawner = mobsFolder:FindFirstChild(name)
-        if spawner then
+        if match then
             local root = spawner:FindFirstChild("HumanoidRootPart", true)
                 or spawner:FindFirstChild("RootPart", true)
-                or (spawner:IsA("BasePart") and spawner)
+                or spawner:FindFirstChild("Torso", true)
                 or spawner.PrimaryPart
+                or (spawner:IsA("BasePart") and spawner)
+                or spawner:FindFirstChildWhichIsA("BasePart", true)
             if root then
                 return root
             end
         end
     end
     return nil
+end
+
+-- Helper: Tìm vị trí Spawner để chờ hồi sinh (tự động luân phiên giữa 2 con)
+local function GetFyzeKyzaSpawnerPos(targetMode, lastKilled)
+    targetMode = targetMode or _G.FyzeKaixaTarget or "Both (Nearest)"
+    if targetMode == "Fyze Only" then
+        return GetSpecificSpawnerRoot("Fyze")
+    elseif targetMode == "Kyza Only" then
+        return GetSpecificSpawnerRoot("Kyza")
+    end
+
+    -- Nếu Both: Vừa tiêu diệt con nào thì bay qua camp con còn lại
+    if lastKilled == "Kyza" then
+        local fyzeSp = GetSpecificSpawnerRoot("Fyze")
+        if fyzeSp then return fyzeSp end
+    elseif lastKilled == "Fyze" then
+        local kyzaSp = GetSpecificSpawnerRoot("Kyza")
+        if kyzaSp then return kyzaSp end
+    end
+
+    -- Mặc định ưu tiên Fyze trước rồi đến Kyza
+    return GetSpecificSpawnerRoot("Fyze") or GetSpecificSpawnerRoot("Kyza")
 end
 
 -- Function: Auto Fyze and Kaixa (Toggle)
@@ -1063,12 +1140,23 @@ Card_SubFarm:CreateToggle({
                             return
                         end
 
-                        local targetMob, targetRoot, targetHumanoid = GetFyzeKyzaTarget(_G.FyzeKaixaTarget)
+                        local targetMob, targetRoot, targetHumanoid, mobType = GetFyzeKyzaTarget(_G.FyzeKaixaTarget)
 
                         if targetMob and targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
                             -- Đang tìm thấy Fyze hoặc Kyza -> Tấn công liên tục đến khi chết
                             while _G.AutoFyzeKaixa and targetMob.Parent and targetHumanoid and targetHumanoid.Health > 0 do
                                 task.wait()
+
+                                -- Kiểm tra nếu quái đã chết
+                                if targetHumanoid.Health <= 0 then break end
+                                local isDead = false
+                                pcall(function()
+                                    if targetHumanoid:GetState() == Enum.HumanoidStateType.Dead then
+                                        isDead = true
+                                    end
+                                end)
+                                if isDead then break end
+
                                 local dist = _G.Distance or 9
                                 local targetPos
                                 if _G.Select_Fram_Mode == "Above" then
@@ -1107,10 +1195,15 @@ Card_SubFarm:CreateToggle({
                                     if charHumanoid then charHumanoid:ChangeState(11) end
                                 end)
                             end
+
+                            -- Đã hạ gục xong -> lưu lại boss vừa đánh để luân chuyển
+                            if mobType then
+                                _G.LastKilledBoss = mobType
+                            end
                         else
                             -- Chưa xuất hiện / Đã bị hạ gục -> Chờ hồi sinh tại vị trí spawner (nếu bật camp spawner)
                             if _G.FyzeKaixaCampSpawner then
-                                local spawnerRoot = GetFyzeKyzaSpawnerPos(_G.FyzeKaixaTarget)
+                                local spawnerRoot = GetFyzeKyzaSpawnerPos(_G.FyzeKaixaTarget, _G.LastKilledBoss)
                                 if spawnerRoot then
                                     local dist = _G.Distance or 9
                                     local waitPos
@@ -1165,15 +1258,29 @@ Card_SubFarm:CreateToggle({
 })
 
 Card_SubFarm:CreateButton({
-    Name = "Teleport to Fyze / Kyza Area",
+    Name = "⚡ Teleport to Fyze Spawner",
     Callback = function()
-        local spawnerRoot = GetFyzeKyzaSpawnerPos(_G.FyzeKaixaTarget)
-        if spawnerRoot then
+        local spRoot = GetSpecificSpawnerRoot("Fyze")
+        if spRoot then
             local dist = _G.Distance or 9
-            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = spawnerRoot.CFrame * CFrame.new(0, dist, 0)
-            Window:Notify({ Title = "Sub Farm", Content = "Teleported to Fyze / Kyza Area!", Duration = 3 })
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = spRoot.CFrame * CFrame.new(0, dist, 0)
+            Window:Notify({ Title = "Sub Farm", Content = "Teleported to Fyze Spawner!", Duration = 3 })
         else
-            Window:Notify({ Title = "Sub Farm", Content = "Cannot find Fyze / Kyza spawner in Workspace.Mobs!", Duration = 3 })
+            Window:Notify({ Title = "Sub Farm", Content = "Cannot find Fyze spawner in Workspace.Mobs!", Duration = 3 })
+        end
+    end
+})
+
+Card_SubFarm:CreateButton({
+    Name = "⚡ Teleport to Kyza Spawner",
+    Callback = function()
+        local spRoot = GetSpecificSpawnerRoot("Kyza")
+        if spRoot then
+            local dist = _G.Distance or 9
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = spRoot.CFrame * CFrame.new(0, dist, 0)
+            Window:Notify({ Title = "Sub Farm", Content = "Teleported to Kyza Spawner!", Duration = 3 })
+        else
+            Window:Notify({ Title = "Sub Farm", Content = "Cannot find Kyza spawner in Workspace.Mobs!", Duration = 3 })
         end
     end
 })
