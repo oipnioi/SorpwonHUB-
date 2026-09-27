@@ -920,25 +920,39 @@ local Card_SubFarmSettings = Tab_SubFarm:CreateSection("Farm Settings Sync")
 -- Toạ độ chuẩn bãi Fyze (bắt buộc tele lại gần để game load quái Streaming):
 local FYZE_CFRAME = CFrame.new(783.380981, 14.2860003, -802.442017, 1, 0, 0, 0, 1, 0, 0, 0, 1)
 
--- Helper: Kiểm tra tên có phải Fyze/Faiz
+-- Helper: Kiểm tra tên có phải Fyze (tuyệt đối không nhận DecadeFaiz)
 local function MatchesFyze(name)
     if not name then return false end
     local n = string.lower(tostring(name))
-    return string.find(n, "fyze") ~= nil or string.find(n, "faiz") ~= nil or string.find(n, "fize") ~= nil or string.find(n, "faize") ~= nil
+    if string.find(n, "decade") or string.find(n, "tsukasa") then return false end
+    return string.find(n, "fyze") ~= nil
 end
 
--- Helper: Kiểm tra tên có phải Kyza/Kaixa
+-- Helper: Kiểm tra tên có phải Kyza/Kaixa (tuyệt đối không nhận DecadeFaiz)
 local function MatchesKyza(name)
     if not name then return false end
     local n = string.lower(tostring(name))
-    return string.find(n, "kyza") ~= nil or string.find(n, "kaixa") ~= nil or string.find(n, "kaize") ~= nil or string.find(n, "kyxa") ~= nil
+    if string.find(n, "decade") or string.find(n, "tsukasa") then return false end
+    return string.find(n, "kyza") ~= nil or string.find(n, "kaixa") ~= nil
 end
 
--- Helper: Trích xuất thông tin mob hợp lệ
+-- Helper: Trích xuất thông tin mob hợp lệ (chỉ chấp nhận quái, loại trừ 100% NPC tương tác và người chơi)
 local function ExtractMobInfo(obj, mobType)
     if not obj or not obj.Parent then return nil end
+
+    -- Bỏ qua tuyệt đối nếu nằm trong workspace.NPC
+    local npcFolder = game:GetService("Workspace"):FindFirstChild("NPC")
+    if npcFolder and (obj == npcFolder or obj:IsDescendantOf(npcFolder)) then return nil end
+
+    -- Bỏ qua NPC tương tác / Quest giver (có ProximityPrompt như Tsukasa / DecadeFaiz)
+    if obj:FindFirstChildWhichIsA("ProximityPrompt", true) then return nil end
+
+    -- Bỏ qua người chơi
     if game:GetService("Players"):FindFirstChild(obj.Name) then return nil end
     if game:GetService("Players"):GetPlayerFromCharacter(obj) then return nil end
+
+    -- Bỏ qua DecadeFaiz
+    if string.find(string.lower(obj.Name), "decade") then return nil end
 
     local hum = obj:FindFirstChildWhichIsA("Humanoid", true) or obj:FindFirstChild("Humanoid", true)
     if not hum or not hum.Parent then return nil end
@@ -976,7 +990,7 @@ local function ExtractMobInfo(obj, mobType)
     }
 end
 
--- Helper: tìm kiếm mục tiêu Fyze hoặc Kyza / Kaixa trong toàn bộ Workspace
+-- Helper: tìm kiếm mục tiêu CHỈ trong workspace.Mobs và workspace.Lives
 local function GetFyzeKyzaTarget(targetMode)
     targetMode = targetMode or _G.FyzeKaixaTarget or "Both (Nearest)"
     local player = game:GetService("Players").LocalPlayer
@@ -1000,65 +1014,41 @@ local function GetFyzeKyzaTarget(targetMode)
         end
     end
 
-    -- 1. Quét trong workspace.Mobs (tìm cả model cha và các model con bên trong)
+    -- 1. Quét trong workspace.Mobs (Fyze & Kyza)
     local mobsFolder = game:GetService("Workspace"):FindFirstChild("Mobs")
     if mobsFolder then
-        for _, obj in ipairs(mobsFolder:GetChildren()) do
-            local isFyze = MatchesFyze(obj.Name)
-            local isKyza = MatchesKyza(obj.Name)
+        local fyzeObj = mobsFolder:FindFirstChild("Fyze")
+        if fyzeObj and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
+            TryAdd(fyzeObj, "Fyze")
+            for _, child in ipairs(fyzeObj:GetChildren()) do
+                TryAdd(child, "Fyze")
+            end
+        end
 
-            if isFyze and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
+        local kyzaObj = mobsFolder:FindFirstChild("Kyza") or mobsFolder:FindFirstChild("Kaixa")
+        if kyzaObj and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
+            TryAdd(kyzaObj, "Kyza")
+            for _, child in ipairs(kyzaObj:GetChildren()) do
+                TryAdd(child, "Kyza")
+            end
+        end
+
+        for _, obj in ipairs(mobsFolder:GetChildren()) do
+            if MatchesFyze(obj.Name) and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
                 TryAdd(obj, "Fyze")
-                for _, child in ipairs(obj:GetChildren()) do
-                    TryAdd(child, "Fyze")
-                end
-            elseif isKyza and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
+            elseif MatchesKyza(obj.Name) and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
                 TryAdd(obj, "Kyza")
-                for _, child in ipairs(obj:GetChildren()) do
-                    TryAdd(child, "Kyza")
-                end
             end
         end
     end
 
-    -- 2. Quét trong workspace.Lives (nơi quái spawn ra thực chiến)
+    -- 2. Quét trong workspace.Lives (khi quái spawn ra thực chiến)
     local livesFolder = game:GetService("Workspace"):FindFirstChild("Lives")
     if livesFolder then
         for _, obj in ipairs(livesFolder:GetChildren()) do
-            local isFyze = MatchesFyze(obj.Name)
-            local isKyza = MatchesKyza(obj.Name)
-
-            if isFyze and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
+            if MatchesFyze(obj.Name) and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
                 TryAdd(obj, "Fyze")
-            elseif isKyza and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
-                TryAdd(obj, "Kyza")
-            end
-        end
-    end
-
-    -- 3. Quét trong workspace.NPC và workspace gốc (dự phòng)
-    local npcFolder = game:GetService("Workspace"):FindFirstChild("NPC")
-    if npcFolder then
-        for _, obj in ipairs(npcFolder:GetChildren()) do
-            local isFyze = MatchesFyze(obj.Name)
-            local isKyza = MatchesKyza(obj.Name)
-
-            if isFyze and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
-                TryAdd(obj, "Fyze")
-            elseif isKyza and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
-                TryAdd(obj, "Kyza")
-            end
-        end
-    end
-
-    for _, obj in ipairs(game:GetService("Workspace"):GetChildren()) do
-        if obj:IsA("Model") and not game:GetService("Players"):GetPlayerFromCharacter(obj) then
-            local isFyze = MatchesFyze(obj.Name)
-            local isKyza = MatchesKyza(obj.Name)
-
-            if isFyze and (targetMode == "Both (Nearest)" or targetMode == "Fyze Only") then
-                TryAdd(obj, "Fyze")
-            elseif isKyza and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
+            elseif MatchesKyza(obj.Name) and (targetMode == "Both (Nearest)" or targetMode == "Kyza Only") then
                 TryAdd(obj, "Kyza")
             end
         end
